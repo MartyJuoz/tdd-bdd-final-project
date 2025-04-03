@@ -27,7 +27,7 @@ import os
 import logging
 import unittest
 from decimal import Decimal
-from service.models import Product, Category, db
+from service.models import Product, Category, db, DataValidationError
 from service import app
 from tests.factories import ProductFactory
 
@@ -194,3 +194,11 @@ class TestProductModel(unittest.TestCase):
         self.assertEqual(found_product.count(), count)
         for product in found_product:
             self.assertEqual(product.category, first_product_category)
+
+    def test_update_called_with_empty_id(self):
+        """It should not update a product when id field is empty"""
+        product = ProductFactory()
+        app.logger.info(product)
+        product.id = None
+        with self.assertRaises(DataValidationError):
+            product.update()

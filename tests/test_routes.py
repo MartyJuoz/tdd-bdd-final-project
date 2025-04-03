@@ -28,11 +28,11 @@ import os
 import logging
 from decimal import Decimal
 from unittest import TestCase
+from requests.utils import requote_uri
 from service import app
 from service.common import status
 from service.models import db, init_db, Product
 from tests.factories import ProductFactory
-from requests.utils import requote_uri
 
 # Disable all but critical errors during normal test run
 # uncomment for debugging failing tests
@@ -212,13 +212,53 @@ class TestProductRoutes(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.get_json()
         self.assertEqual(len(data), name_count)
-        # check the data just to be sure
         for product in data:
             self.assertEqual(product["name"], test_name)
 
-    ######################################################################
-    # Utility functions
-    ######################################################################
+    def test_query_by_category(self):
+        """It should Query Products by category"""
+        products = self._create_products(5)
+        test_category = products[0].category
+        category_count = len([product for product in products if product.category == test_category])
+        response = self.client.get(
+            BASE_URL, query_string=f"category={requote_uri(test_category.name)}"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.get_json()
+        self.assertEqual(len(data), category_count)
+        for product in data:
+            self.assertEqual(product["category"], test_category.name)
+
+    def test_query_by_availability(self):
+        """It should Query Products by availability"""
+        products = self._create_products(5)
+        available_products = [products for product in products if product.available is True]
+        available_count = len(available_products)
+        response = self.client.get(
+            BASE_URL, query_string="available=True"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.get_json()
+        self.assertEqual(len(data), available_count)
+        for product in data:
+            self.assertEqual(product["available"], True)
+
+    def test_get_product_not_found(self):
+        """It should not Get a Product thats not found"""
+        response = self.client.get(f"{BASE_URL}/-1")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        data = response.get_json()
+        self.assertIn("was not found", data["message"])
+
+    def test_illegal_method(self):
+        """It should not let you use DELETE method on /products"""
+        response = self.client.delete(f"{BASE_URL}")
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_update_product_not_found(self):
+        """It should not update a product that's not found"""
+        response = self.client.put(f"{BASE_URL}/-1")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def get_product_count(self):
         """save the current number of products"""
@@ -227,5 +267,3 @@ class TestProductRoutes(TestCase):
         data = response.get_json()
         # logging.debug("data = %s", data)
         return len(data)
-    
-
